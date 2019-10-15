@@ -1,0 +1,167 @@
+'use strict';
+
+class FlipCard extends HTMLElement {
+	static get SIDES() {
+		return {
+			FRONT: 1,
+			BACK: 2
+		};
+	}
+
+	flip() {
+		// stops clicking while animating
+		if (this._locked) {
+			return;
+		}
+		this._locked = true;
+
+		// 1/(perspective - translateZ)
+		const scale = (500 + 200) / 500;
+		const sideOne = [
+			// push back
+			{
+				transform: `translateZ(-200px) rotate${this._axis}(0deg) scale(${scale})`
+			},
+			// bring it forward a little
+			{
+				transform: `translateZ(-100px) rotate${this._axis}(0deg) scale(${scale})`,
+				offset: 0.15
+			},
+			// rotate
+			{
+				transform: `translateZ(-100px) rotate${this._axis}(180deg) scale(${scale})`,
+				offset: 0.65
+			},
+			// push it back
+			{
+				transform: `translateZ(-200px) rotate${this._axis}(180deg) scale(${scale})`
+			}
+		];
+
+		const sideTwo = [
+			// push back
+			{
+				transform: `translateZ(-200px) rotate${this._axis}(180deg) scale(${scale})`
+			},
+			// bring it forward a little
+			{
+				transform: `translateZ(-100px) rotate${this._axis}(180deg) scale(${scale})`,
+				offset: 0.15
+			},
+			// rotate the same way, so 360deg
+			{
+				transform: `translateZ(-100px) rotate${this._axis}(360deg) scale(${scale})`,
+				offset: 0.65
+			},
+			// push it back
+			{
+				transform: `translateZ(-200px) rotate${this._axis}(360deg) scale(${scale})`
+			}
+		];
+
+		const umbra = [
+			{ opacity: 0.3, transform: `translateY(2px) rotate${this._axis}(0deg)` },
+			{
+				opacity: 0.0,
+				transform: `translateY(62px) rotate${this._axis}(0deg)`,
+				offset: 0.15
+			},
+			{
+				opacity: 0.0,
+				transform: `translateY(62px) rotate${this._axis}(180deg)`,
+				offset: 0.65
+			},
+			{ opacity: 0.3, transform: `translateY(2px) rotate${this._axis}(180deg)` }
+		];
+
+		const penumbra = [
+			{ opacity: 0.0, transform: `translateY(2px) rotate${this._axis}(0deg)` },
+			{
+				opacity: 0.5,
+				transform: `translateY(62px) rotate${this._axis}(0deg)`,
+				offset: 0.15
+			},
+			{
+				opacity: 0.5,
+				transform: `translateY(62px) rotate${this._axis}(180deg)`,
+				offset: 0.65
+			},
+			{ opacity: 0.0, transform: `translateY(2px) rotate${this._axis}(180deg)` }
+		];
+
+		const timing = {
+			duration: this._duration,
+			iterations: 1,
+			easing: 'ease-in-out',
+			fill: 'forwards'
+		};
+
+		switch (this._side) {
+			case FlipCard.SIDES.FRONT:
+				this._front.animate(sideOne, timing);
+				this._back.animate(sideTwo, timing);
+
+				this._back.focus();
+				this._front.inert = true;
+				this._back.inert = false;
+				break;
+
+			case FlipCard.SIDES.BACK:
+				this._front.animate(sideTwo, timing);
+				this._back.animate(sideOne, timing);
+
+				this._front.focus();
+				this._front.inert = false;
+				this._back.inert = true;
+				break;
+
+			default:
+				throw new Error('Unknown side');
+		}
+
+		this._umbra.animate(umbra, timing);
+		this._penumbra.animate(penumbra, timing).onfinish = _ => {
+			this._locked = false;
+			this._side =
+				this._side === FlipCard.SIDES.FRONT
+					? FlipCard.SIDES.BACK
+					: FlipCard.SIDES.FRONT;
+		};
+	}
+
+	createdCallback() {
+		this._locked = false;
+		// Front shows to start
+		this._side = FlipCard.SIDES.FRONT;
+		this._front = this.querySelector('.front');
+		this._back = this.querySelector('.back');
+		this._buttons = this.querySelectorAll('button');
+		this._umbra = this.querySelector('.umbra');
+		this._penumbra = this.querySelector('.penumbra');
+
+		// inert polyfill...?
+		this._front.inert = false;
+		this._back.inert = true;
+
+		this._duration = parseInt(this.getAttribute('duration'), 10);
+		if (isNaN(this._duration)) {
+			this._duration = 800;
+		}
+
+		this._axis = this.getAttribute('axis') || 'X';
+		if (this._axis.toUpperCase() === 'RANDOM') {
+			this._axis = Math.random() > 0.5 ? 'Y' : 'X';
+		}
+	}
+
+	attachedCallback() {
+		// When we click on a card(button) call flip
+		Array.from(this._buttons).forEach(b => {
+			b.addEventListener('click', _ => this.flip());
+		});
+	}
+
+	detachedCallback() {}
+}
+
+document.registerElement('flip-card', FlipCard);
